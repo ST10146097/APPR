@@ -1,0 +1,51 @@
+# Trigger pipeline on changes to the main branch
+trigger:
+  branches:
+    include:
+      - main
+
+pool:
+  vmImage: 'windows-latest'
+
+variables:
+  buildConfiguration: 'Release'
+
+steps:
+# 1. Install the specified .NET SDK
+- task: UseDotNet@2
+  inputs:
+    packageType: 'sdk'
+    version: '6.x'  # Update this to match your project’s .NET version
+    installationPath: $(Agent.ToolsDirectory)/dotnet
+
+# 2. Restore dependencies
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'restore'
+    projects: '**/*.csproj'
+
+# 3. Build the project
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'build'
+    projects: '**/*.csproj'
+    arguments: '--configuration $(buildConfiguration)'
+
+# 4. Publish the project
+- task: DotNetCoreCLI@2
+  inputs:
+    command: 'publish'
+    publishWebProjects: true
+    arguments: '--configuration $(buildConfiguration) --output $(Build.ArtifactStagingDirectory)'
+    zipAfterPublish: true
+
+# 5. Publish build artifacts
+- publish: $(Build.ArtifactStagingDirectory)
+  artifact: drop
+
+# 6. Deploy to Azure App Service
+- task: AzureWebApp@1
+  inputs:
+    azureSubscription: '<Your-Azure-Service-Connection>'
+    appName: '<WebAppPoe>'
+    package: $(Build.ArtifactStagingDirectory)/*.zip
